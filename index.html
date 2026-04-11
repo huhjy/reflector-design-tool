@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflector Design Tool</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <h1>Reflector Design Tool</h1>
+      <button id="btn-reset">Reset</button>
+      <button id="btn-save">Save</button>
+      <button id="btn-load">Load</button>
+      <input type="file" id="file-input" accept=".json">
+      <div class="spacer"></div>
+      <label>
+        <input type="checkbox" id="toggle-rays" checked>
+        Show Rays
+      </label>
+      <span id="coords"></span>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-container">
+      <canvas id="main-canvas"></canvas>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <!-- Light Source -->
+      <details open>
+        <summary>Light Source (LED)</summary>
+        <div class="section-body">
+          <p class="desc">The LED is mounted on the PCB, emitting light upward. Rays are cast at angles between the min and max emission angles. The intensity profile controls how brightness varies with angle.</p>
+          <div class="field">
+            <label>Ray Count <span class="info-tip" title="Number of rays to simulate. More rays = more accurate results but slower. 100-300 is good for interactive editing, 500+ for final analysis.">?</span></label>
+            <div class="range-row">
+              <input type="range" id="light-ray-count" min="10" max="2000" step="10" value="150">
+              <span id="light-ray-count-val">150</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Min Angle (&deg;) <span class="info-tip" title="Leftmost emission angle in degrees. -90° = straight left, 0° = straight up.">?</span></label>
+              <input type="number" id="light-angle-min" value="-85" step="5">
+            </div>
+            <div class="field">
+              <label>Max Angle (&deg;)</label>
+              <input type="number" id="light-angle-max" value="85" step="5">
+            </div>
+          </div>
+          <div class="field">
+            <label>Intensity Profile <span class="info-tip" title="How LED brightness varies with emission angle. Most real LEDs follow a Lambertian pattern where light is brightest directly above and dims toward the sides.">?</span></label>
+            <select id="light-profile">
+              <option value="lambertian" title="Brightness = cos(angle). Brightest straight up, dimming smoothly to edges. Most common LED pattern.">Lambertian (cos &theta;)</option>
+              <option value="uniform" title="Equal brightness at all angles. Unrealistic but useful for testing.">Uniform (flat)</option>
+              <option value="cosine" title="Brightness = cos²(angle). Narrower than Lambertian — light is more concentrated upward.">Cosine&sup2; (narrow)</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <!-- Exit Area -->
+      <details open>
+        <summary>Exit Aperture</summary>
+        <div class="section-body">
+          <p class="desc">The opening where light leaves the reflector. Rays that cross this line are considered "captured." Position it where your lens, diffuser, or output window would be.</p>
+          <div class="field-row">
+            <div class="field">
+              <label>Center X (mm)</label>
+              <input type="number" id="exit-center-x" step="1">
+            </div>
+            <div class="field">
+              <label>Center Y (mm)</label>
+              <input type="number" id="exit-center-y" step="1">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Angle (&deg;) <span class="info-tip" title="Rotation of the exit line. 0° = horizontal, 90° = vertical. Use this to tilt the exit aperture for angled output designs.">?</span></label>
+              <input type="number" id="exit-angle" step="5" value="0">
+            </div>
+            <div class="field">
+              <label>Width (mm) <span class="info-tip" title="Total length of the exit opening. A wider aperture captures more light but may produce a less focused beam.">?</span></label>
+              <input type="number" id="exit-width" step="5" min="5">
+            </div>
+          </div>
+          <p class="hint">Drag the green center handle to reposition. Use the square handles to resize width, and the diamond handle to rotate. The dashed line shows the exit normal direction.</p>
+        </div>
+      </details>
+
+      <!-- Reflector -->
+      <details open>
+        <summary>Reflector</summary>
+        <div class="section-body">
+          <p class="desc">The reflective surface that redirects light from the LED toward the exit aperture. Choose a shape type, then adjust its geometry to optimize light capture and distribution.</p>
+          <div class="field">
+            <label>Shape</label>
+            <select id="reflector-type">
+              <option value="parabolic" title="A parabolic curve focuses parallel light to a point (or collimates light from a point). Best when the LED is near the focal point.">Parabolic</option>
+              <option value="elliptical" title="An elliptical arc focuses light from one focal point to the other. Useful for transferring light between two specific locations.">Elliptical</option>
+              <option value="freeform" title="Custom reflector shape. Use segments (angle + length) for precision or Bezier curves for smooth organic shapes.">Freeform</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Reflectivity <span class="info-tip" title="Fraction of light reflected at each bounce. 1.0 = perfect mirror, 0.0 = fully absorbing. Typical polished aluminum: 0.85-0.95. Chrome: 0.65-0.70.">?</span></label>
+            <div class="range-row">
+              <input type="range" id="reflector-reflectivity" min="0" max="1" step="0.01" value="0.95">
+              <span id="reflector-reflectivity-val">0.95</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Surface Type <span class="info-tip" title="Specular = mirror-like, angle of incidence equals angle of reflection. Diffuse = rough/matte surface that scatters light randomly.">?</span></label>
+            <select id="reflector-surface">
+              <option value="specular">Specular (Mirror)</option>
+              <option value="diffuse">Diffuse (Matte)</option>
+            </select>
+          </div>
+
+          <!-- Parabolic params -->
+          <div id="params-parabolic">
+            <p class="desc">A parabola is defined by its vertex (bottom point) and focal length. Light emitted from the focal point reflects off the parabola into parallel rays. Move the vertex to position the reflector.</p>
+            <div class="field-row">
+              <div class="field">
+                <label>Vertex X</label>
+                <input type="number" id="para-vertex-x" step="1">
+              </div>
+              <div class="field">
+                <label>Vertex Y</label>
+                <input type="number" id="para-vertex-y" step="1">
+              </div>
+            </div>
+            <div class="field">
+              <label>Focal Length (mm) <span class="info-tip" title="Distance from vertex to focal point. Place the LED at the focal point for best collimation. Shorter = tighter cup, longer = shallower dish.">?</span></label>
+              <input type="number" id="para-focal" step="1" min="1">
+            </div>
+            <div class="field">
+              <label>Aperture (mm) <span class="info-tip" title="Width of the parabola opening. Wider = captures more light from wide-angle LEDs but makes the reflector larger.">?</span></label>
+              <input type="number" id="para-aperture" step="5" min="10">
+            </div>
+          </div>
+
+          <!-- Elliptical params -->
+          <div id="params-elliptical" style="display:none">
+            <p class="desc">An ellipse has two focal points. Light from one focus reflects to the other. Useful for redirecting light to a specific target location.</p>
+            <div class="field-row">
+              <div class="field">
+                <label>Center X</label>
+                <input type="number" id="elli-center-x" step="1">
+              </div>
+              <div class="field">
+                <label>Center Y</label>
+                <input type="number" id="elli-center-y" step="1">
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Semi-Major (mm)</label>
+                <input type="number" id="elli-major" step="1" min="1">
+              </div>
+              <div class="field">
+                <label>Semi-Minor (mm)</label>
+                <input type="number" id="elli-minor" step="1" min="1">
+              </div>
+            </div>
+            <div class="field">
+              <label>Rotation (rad)</label>
+              <input type="number" id="elli-rotation" step="0.1">
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Arc Start (&deg;)</label>
+                <input type="number" id="elli-arc-start" step="5">
+              </div>
+              <div class="field">
+                <label>Arc End (&deg;)</label>
+                <input type="number" id="elli-arc-end" step="5">
+              </div>
+            </div>
+          </div>
+
+          <!-- Freeform params -->
+          <div id="params-freeform" style="display:none">
+            <p class="desc">Design a custom reflector profile. Use <strong>Segments</strong> mode to define the shape step-by-step with precise angles and lengths, or <strong>Bezier</strong> mode for smooth curves via draggable control points.</p>
+            <div class="field">
+              <label>Drawing Mode</label>
+              <select id="freeform-mode">
+                <option value="polyline">Polyline (Vertices)</option>
+                <option value="bezier">Bezier Curves</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>
+                <input type="checkbox" id="mirror-x" checked>
+                Mirror across Y axis <span class="info-tip" title="Automatically creates a symmetric reflector by mirroring your segments across the center vertical axis. Uncheck for asymmetric designs.">?</span>
+              </label>
+            </div>
+
+            <!-- Polyline vertex UI -->
+            <div id="freeform-polyline-ui">
+              <p class="desc">Define the reflector profile by placing vertices. Each vertex is an absolute position (X, Y in mm). Drag vertices directly on the canvas or edit coordinates below.</p>
+              <div class="segment-list-header">
+                <span>Vertices</span>
+                <button id="btn-add-vertex" title="Add a new vertex to the reflector profile">+ Add</button>
+              </div>
+              <div id="vertex-list"></div>
+            </div>
+
+            <!-- Bezier UI -->
+            <div id="freeform-bezier-ui" style="display:none">
+              <p class="hint">Drag purple control points on canvas. Points form cubic Bezier curves (groups of 4: start, control1, control2, end).</p>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Optimizer -->
+      <details>
+        <summary>Optimizer</summary>
+        <div class="section-body">
+          <p class="desc">Automatically adjusts the reflector shape to improve performance. Pick a goal, click Optimize, and watch the reflector evolve in real-time. The optimizer tweaks geometry parameters (vertex, focal length, segment angles, etc.) using simulated annealing.</p>
+          <div class="field">
+            <label>Objective <span class="info-tip" title="What the optimizer tries to maximize. 'Ray Efficiency' = get as many rays to the exit as possible. 'Power Efficiency' = maximize total light output. 'Uniformity' = even light spread. 'Balanced' = weighted mix of all three.">?</span></label>
+            <select id="opt-objective">
+              <option value="rayEfficiency">Ray Efficiency</option>
+              <option value="powerEfficiency">Power Efficiency</option>
+              <option value="uniformity">Uniformity</option>
+              <option value="balanced" selected>Balanced (recommended)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Iterations <span class="info-tip" title="How many random perturbations to try. More iterations = better results but takes longer. 300-500 is a good starting point.">?</span></label>
+            <div class="range-row">
+              <input type="range" id="opt-iterations" min="100" max="2000" step="100" value="500">
+              <span id="opt-iterations-val">500</span>
+            </div>
+          </div>
+          <div class="opt-actions">
+            <button id="btn-optimize" class="btn-primary">Optimize</button>
+            <button id="btn-stop-optimize" style="display:none">Stop</button>
+          </div>
+          <div id="opt-progress" class="opt-progress" style="display:none">
+            <div class="opt-bar-bg"><div id="opt-bar" class="opt-bar"></div></div>
+            <div id="opt-status" class="opt-status">Starting...</div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Analysis Results -->
+      <details open>
+        <summary>Analysis Results</summary>
+        <div class="section-body">
+          <p class="desc">How effectively the reflector captures and redirects LED light to the exit aperture. Higher efficiency means less wasted light.</p>
+          <div id="results"></div>
+          <div class="chart-container">
+            <canvas id="distribution-chart"></canvas>
+          </div>
+          <p class="hint">The chart shows how light intensity is distributed across the exit aperture. A tall, even distribution means uniform illumination. Dotted lines past the exit show where light goes after leaving the reflector.</p>
+        </div>
+      </details>
+    </aside>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
