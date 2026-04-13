@@ -185,12 +185,14 @@
 
           <!-- Freeform params -->
           <div id="params-freeform" style="display:none">
-            <p class="desc">Design a custom reflector profile. Use <strong>Segments</strong> mode to define the shape step-by-step with precise angles and lengths, or <strong>Bezier</strong> mode for smooth curves via draggable control points.</p>
+            <p class="desc">Design a custom reflector profile. <strong>Polyline</strong>: straight segments between vertices. <strong>Smooth Curve</strong>: automatic spline through the same vertices. <strong>Mixed</strong>: toggle individual segments between straight and curved. <strong>Bezier</strong>: full manual Bezier curve editing.</p>
             <div class="field">
               <label>Drawing Mode</label>
               <select id="freeform-mode">
-                <option value="polyline">Polyline (Vertices)</option>
-                <option value="bezier">Bezier Curves</option>
+                <option value="polyline">Polyline (Straight Segments)</option>
+                <option value="smooth">Smooth Curve (Auto-fit)</option>
+                <option value="mixed">Mixed (Straight + Curved)</option>
+                <option value="bezier">Bezier Curves (Manual)</option>
               </select>
             </div>
             <div class="field">
@@ -200,9 +202,9 @@
               </label>
             </div>
 
-            <!-- Polyline vertex UI -->
+            <!-- Polyline / Smooth / Mixed vertex UI -->
             <div id="freeform-polyline-ui">
-              <p class="desc">Define the reflector profile by placing vertices. Each vertex is an absolute position (X, Y in mm). Drag vertices directly on the canvas or edit coordinates below.</p>
+              <p class="desc">Define the reflector profile by placing vertices. Each vertex is an absolute position (X, Y in mm). Drag vertices directly on the canvas or edit coordinates below. In <strong>Mixed</strong> mode, click the segment indicator between vertices to toggle it between straight (&#8212;) and curved (&#8256;).</p>
               <div class="segment-list-header">
                 <span>Vertices</span>
                 <button id="btn-add-vertex" title="Add a new vertex to the reflector profile">+ Add</button>

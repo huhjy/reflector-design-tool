@@ -138,7 +138,8 @@ export class Controls {
     const mode = this.scene.reflector.freeformMode;
     const polyEl = document.getElementById('freeform-polyline-ui');
     const bezEl = document.getElementById('freeform-bezier-ui');
-    if (polyEl) polyEl.style.display = mode === 'polyline' ? 'block' : 'none';
+    const isVertexMode = mode === 'polyline' || mode === 'smooth' || mode === 'mixed';
+    if (polyEl) polyEl.style.display = isVertexMode ? 'block' : 'none';
     if (bezEl) bezEl.style.display = mode === 'bezier' ? 'block' : 'none';
   }
 
@@ -148,6 +149,8 @@ export class Controls {
 
     const verts = this.scene.reflector.vertices || [];
     const segInfo = computeVertexSegmentInfo(verts);
+    const isMixed = this.scene.reflector.freeformMode === 'mixed';
+    const segCurved = this.scene.reflector.segmentCurved || [];
     container.innerHTML = '';
 
     verts.forEach((v, i) => {
@@ -171,9 +174,23 @@ export class Controls {
         <button class="vtx-remove" data-idx="${i}" title="Remove vertex">&times;</button>
       `;
       container.appendChild(row);
+
+      // Segment type toggle between consecutive vertices (mixed mode only)
+      if (isMixed && i < verts.length - 1) {
+        const curved = !!segCurved[i];
+        const segRow = document.createElement('div');
+        segRow.className = 'seg-type-row';
+        segRow.innerHTML = `
+          <button class="seg-type-btn${curved ? ' curved' : ''}" data-idx="${i}"
+            title="${curved ? 'Curved \u2014 click to make straight' : 'Straight \u2014 click to make curved'}">
+            ${curved ? '\u2040' : '\u2014'}
+          </button>
+        `;
+        container.appendChild(segRow);
+      }
     });
 
-    // Bind events
+    // Bind vertex X/Y input events
     container.querySelectorAll('.vtx-x').forEach((el) => {
       el.addEventListener('input', () => {
         const idx = parseInt(el.dataset.idx, 10);
@@ -194,10 +211,28 @@ export class Controls {
       el.addEventListener('click', () => {
         const idx = parseInt(el.dataset.idx, 10);
         this.scene.reflector.vertices.splice(idx, 1);
+        // Also remove the corresponding segmentCurved entry
+        const sc = this.scene.reflector.segmentCurved;
+        if (sc && idx < sc.length) sc.splice(idx, 1);
         this.renderVertexList();
         this.debounceChange();
       });
     });
+
+    // Bind segment type toggle events (mixed mode)
+    if (isMixed) {
+      container.querySelectorAll('.seg-type-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          const sc = this.scene.reflector.segmentCurved || [];
+          while (sc.length < verts.length - 1) sc.push(false);
+          sc[idx] = !sc[idx];
+          this.scene.reflector.segmentCurved = sc;
+          this.renderVertexList();
+          this.debounceChange();
+        });
+      });
+    }
   }
 
   syncFromScene() {

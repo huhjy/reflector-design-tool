@@ -30,7 +30,7 @@ export function createDefaultScene() {
       arcStartDeg: 180,
       arcEndDeg: 360,
       // Freeform
-      freeformMode: 'polyline', // 'polyline' | 'bezier'
+      freeformMode: 'polyline', // 'polyline' | 'smooth' | 'mixed' | 'bezier'
       // Polyline vertices (absolute positions, independent)
       vertices: [
         { x: -50, y: 70 },
@@ -39,6 +39,7 @@ export function createDefaultScene() {
         { x: -37.1, y: 1.9 },
         { x: -28.5, y: -6.5 },
       ],
+      segmentCurved: [], // 'mixed' mode: boolean per left-side segment
       // Bezier control points
       controlPoints: [
         { x: -55, y: 75 },

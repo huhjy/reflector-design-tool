@@ -458,7 +458,7 @@ export class Renderer {
 
       if (h.shape === 'square') {
         // Width handles
-        const sz = isHovered ? 7 : 4;
+        const sz = isHovered ? 9 : 6;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.strokeRect(s.x - sz, s.y - sz, sz * 2, sz * 2);
@@ -564,7 +564,7 @@ export class Renderer {
         color: COLORS.reflector,
       });
     } else if (r.type === 'freeform') {
-      if (r.freeformMode === 'polyline') {
+      if (r.freeformMode === 'polyline' || r.freeformMode === 'smooth' || r.freeformMode === 'mixed') {
         for (let i = 0; i < (r.vertices || []).length; i++) {
           handles.push({
             id: `vtx-${i}`,
@@ -575,6 +575,7 @@ export class Renderer {
           });
         }
       } else {
+        // bezier mode
         for (let i = 0; i < r.controlPoints.length; i++) {
           handles.push({
             id: `cp-${i}`,
@@ -600,6 +601,32 @@ export class Renderer {
         return h;
       }
     }
+
+    // Also detect clicks on the exit aperture line body itself (for moving)
+    if (this.scene) {
+      const { p1, p2 } = getExitEndpoints(this.scene.exitArea);
+      const sp1 = this.toScreen(p1.x, p1.y);
+      const sp2 = this.toScreen(p2.x, p2.y);
+      if (this._pointToSegmentDist(sx, sy, sp1.x, sp1.y, sp2.x, sp2.y) < 8) {
+        return {
+          id: 'exit-line',
+          x: this.scene.exitArea.center.x,
+          y: this.scene.exitArea.center.y,
+          label: 'Move Exit',
+          color: COLORS.exitArea,
+        };
+      }
+    }
+
     return null;
+  }
+
+  _pointToSegmentDist(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 0.001) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+    return Math.sqrt((px - x1 - t * dx) ** 2 + (py - y1 - t * dy) ** 2);
   }
 }

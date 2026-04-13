@@ -8,7 +8,7 @@ import {
   reflectDirection,
   diffuseDirection,
 } from './intersect.js';
-import { getFreeformBezierSegments, getFreeformSegmentLineSegments } from './reflector-shapes.js';
+import { getFreeformBezierSegments, getFreeformSegmentLineSegments, getSmoothPolylineSegments, getMixedPolylineSegments } from './reflector-shapes.js';
 import { getExitEndpoints } from '../scene.js';
 
 /**
@@ -159,7 +159,8 @@ function getReflectorHits(ray, reflector) {
     }
 
     case 'freeform': {
-      if (reflector.freeformMode === 'segments') {
+      const mode = reflector.freeformMode;
+      if (mode === 'polyline' || mode === 'segments') {
         const lineSegs = getFreeformSegmentLineSegments(reflector);
         const hits = [];
         for (const [p1, p2] of lineSegs) {
@@ -168,7 +169,30 @@ function getReflectorHits(ray, reflector) {
         }
         return hits;
       }
-      // Bezier mode
+      if (mode === 'smooth') {
+        const segments = getSmoothPolylineSegments(reflector);
+        const hits = [];
+        for (const [p0, p1, p2, p3] of segments) {
+          hits.push(...rayCubicBezier(ray, p0, p1, p2, p3));
+        }
+        return hits;
+      }
+      if (mode === 'mixed') {
+        const segs = getMixedPolylineSegments(reflector);
+        const hits = [];
+        for (const seg of segs) {
+          if (seg.type === 'bezier') {
+            const [p0, p1, p2, p3] = seg.points;
+            hits.push(...rayCubicBezier(ray, p0, p1, p2, p3));
+          } else {
+            const [pa, pb] = seg.points;
+            const hit = rayLineSegment(ray, pa, pb);
+            if (hit) hits.push(hit);
+          }
+        }
+        return hits;
+      }
+      // Default: bezier mode
       const segments = getFreeformBezierSegments(reflector);
       const hits = [];
       for (const [p0, p1, p2, p3] of segments) {

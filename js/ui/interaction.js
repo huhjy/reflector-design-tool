@@ -41,7 +41,15 @@ export class Interaction {
     }
     const handle = this.renderer.hitTestHandle(pos.x, pos.y);
     if (handle) {
+      const world = this.renderer.toWorld(pos.x, pos.y);
       this.dragging = { id: handle.id };
+      // For line-body drag, store initial positions to avoid jumping
+      if (handle.id === 'exit-line') {
+        this.dragging.startMouseX = world.x;
+        this.dragging.startMouseY = world.y;
+        this.dragging.startCenterX = this.scene.exitArea.center.x;
+        this.dragging.startCenterY = this.scene.exitArea.center.y;
+      }
       this.canvas.style.cursor = 'grabbing';
     }
   }
@@ -118,6 +126,13 @@ export class Interaction {
       const dy = newP2.y - newP1.y;
       s.exitArea.width = Math.max(5, Math.sqrt(dx * dx + dy * dy));
       s.exitArea.angleDeg = Math.round(Math.atan2(dy, dx) * 180 / Math.PI);
+
+    } else if (handleId === 'exit-line') {
+      // Drag line body → move center, preserving relative pick point
+      const ddx = world.x - (this.dragging.startMouseX || world.x);
+      const ddy = world.y - (this.dragging.startMouseY || world.y);
+      s.exitArea.center.x = snap((this.dragging.startCenterX || s.exitArea.center.x) + ddx);
+      s.exitArea.center.y = snap((this.dragging.startCenterY || s.exitArea.center.y) + ddy);
 
     } else if (handleId === 'exit-rotate') {
       // Rotate around center

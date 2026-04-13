@@ -11,10 +11,16 @@ export function getReflectorSamplePoints(reflector, count = 100) {
     case 'elliptical':
       return sampleEllipse(reflector, count);
     case 'freeform':
-      if (reflector.freeformMode === 'polyline' || reflector.freeformMode === 'segments') {
-        return computePolylinePoints(reflector);
+      switch (reflector.freeformMode) {
+        case 'smooth':
+          return computeSmoothPolylinePoints(reflector, count);
+        case 'mixed':
+          return computeMixedPolylinePoints(reflector, count);
+        case 'bezier':
+          return sampleFreeform(reflector, count);
+        default: // 'polyline' and legacy 'segments'
+          return computePolylinePoints(reflector);
       }
-      return sampleFreeform(reflector, count);
     default:
       return [];
   }
@@ -136,4 +142,132 @@ export function getFreeformBezierSegments(reflector) {
     }
   }
   return segments;
+}
+
+// ── Smooth (Catmull-Rom spline) helpers ──────────────────────────────────────
+
+function phantomPoint(endpoint, neighbor) {
+  return { x: 2 * endpoint.x - neighbor.x, y: 2 * endpoint.y - neighbor.y };
+}
+
+/**
+ * Convert a Catmull-Rom span [p0,p1,p2,p3] into cubic Bezier control points
+ * for the p1→p2 segment.
+ */
+function catmullRomToBezier(p0, p1, p2, p3) {
+  return [
+    p1,
+    { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 },
+    { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 },
+    p2,
+  ];
+}
+
+/**
+ * Get Bezier segment tuples [p0,p1,p2,p3] for the smooth (Catmull-Rom) mode.
+ * One tuple per consecutive vertex pair (after applying mirrorX).
+ */
+export function getSmoothPolylineSegments(reflector) {
+  const pts = computePolylinePoints(reflector);
+  if (pts.length < 2) return [];
+  const segments = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = i > 0 ? pts[i - 1] : phantomPoint(pts[0], pts[1]);
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = i + 2 < pts.length ? pts[i + 2] : phantomPoint(pts[pts.length - 1], pts[pts.length - 2]);
+    segments.push(catmullRomToBezier(p0, p1, p2, p3));
+  }
+  return segments;
+}
+
+/**
+ * Sample points along a smooth Catmull-Rom spline through the freeform vertices.
+ */
+export function computeSmoothPolylinePoints(reflector, count = 100) {
+  const segments = getSmoothPolylineSegments(reflector);
+  if (!segments.length) return computePolylinePoints(reflector);
+  const points = [];
+  const pps = Math.ceil(count / segments.length);
+  for (let s = 0; s < segments.length; s++) {
+    const [p0, p1, p2, p3] = segments[s];
+    for (let j = 0; j <= pps; j++) {
+      if (s > 0 && j === 0) continue;
+      points.push(cubicBezierPoint(p0, p1, p2, p3, j / pps));
+    }
+  }
+  return points;
+}
+
+// ── Mixed (straight + curved) helpers ────────────────────────────────────────
+
+/**
+ * Get mixed segments for intersection testing.
+ * Each element is { type: 'line'|'bezier', points: [...] }.
+ * segmentCurved applies to the left-side vertices; the mirrored right side
+ * mirrors the same types in reverse order.
+ */
+export function getMixedPolylineSegments(reflector) {
+  const pts = computePolylinePoints(reflector);
+  if (pts.length < 2) return [];
+
+  const origN = (reflector.vertices || []).length;
+  const leftSegCount = Math.max(origN - 1, 0);
+  const segCurved = reflector.segmentCurved || [];
+
+  // Build full curved[] for every segment in the combined (possibly mirrored) point list
+  const allCurved = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (i < leftSegCount) {
+      allCurved.push(!!segCurved[i]);
+    } else if (i === leftSegCount) {
+      // Junction between left and mirrored-right: inherit last left type
+      allCurved.push(!!segCurved[leftSegCount - 1]);
+    } else {
+      // Right mirror: reverse of left (right segment 0 = mirror of last left, etc.)
+      const rightIdx = i - leftSegCount - 1;
+      const mirrorIdx = leftSegCount - 1 - rightIdx;
+      allCurved.push(mirrorIdx >= 0 ? !!segCurved[mirrorIdx] : false);
+    }
+  }
+
+  const result = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (allCurved[i]) {
+      const p0 = i > 0 ? pts[i - 1] : phantomPoint(pts[0], pts[1]);
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = i + 2 < pts.length ? pts[i + 2] : phantomPoint(pts[pts.length - 1], pts[pts.length - 2]);
+      result.push({ type: 'bezier', points: catmullRomToBezier(p0, p1, p2, p3) });
+    } else {
+      result.push({ type: 'line', points: [pts[i], pts[i + 1]] });
+    }
+  }
+  return result;
+}
+
+/**
+ * Sample points for rendering a mixed-mode reflector.
+ */
+export function computeMixedPolylinePoints(reflector, count = 100) {
+  const segs = getMixedPolylineSegments(reflector);
+  if (!segs.length) return computePolylinePoints(reflector);
+  const curvedCount = segs.filter(s => s.type === 'bezier').length;
+  const ppc = Math.ceil(count / Math.max(curvedCount, 1));
+  const points = [];
+  for (let s = 0; s < segs.length; s++) {
+    const seg = segs[s];
+    if (seg.type === 'bezier') {
+      const [p0, p1, p2, p3] = seg.points;
+      for (let j = 0; j <= ppc; j++) {
+        if (s > 0 && j === 0) continue;
+        points.push(cubicBezierPoint(p0, p1, p2, p3, j / ppc));
+      }
+    } else {
+      const [p1, p2] = seg.points;
+      if (points.length === 0) points.push({ x: p1.x, y: p1.y });
+      points.push({ x: p2.x, y: p2.y });
+    }
+  }
+  return points;
 }
