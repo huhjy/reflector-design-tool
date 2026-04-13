@@ -1,0 +1,34 @@
+---
+description: After code changes, verify the request was met and check for errors
+alwaysApply: true
+---
+
+# Verify request and validate code
+
+Whenever you generate or modify code for the user:
+
+## 1. Match the request
+
+- Re-read the user’s ask (including constraints, “do not” items, and implied edge cases).
+- Confirm the change actually implements that behavior; fix gaps before finishing.
+
+## 2. Check for errors
+
+- Run **read_lints** on files you edited (or the relevant paths).
+- If the project has tests, build, or typecheck scripts, run the appropriate command(s) and fix failures you introduced.
+- If there are no automated checks, do a short manual pass for obvious bugs (null/empty handling, wrong API usage, broken references).
+
+## 3. Report briefly
+
+- State whether the work matches the request and what you checked (e.g. lints clean, tests passed, or manual review only).
+
+## 4. Publish to GitHub (only after 1–2 pass)
+
+- If you did not change any files (question-only turn), skip this section.
+- If the user asked to skip git, or there is nothing new to commit, skip this section.
+- Stage only files that belong in the repo (the ones you changed or that are clearly part of the task). Do not commit secrets, `.env`, or other excluded local-only content.
+- `git commit` with a short, accurate message (what changed and why).
+- `git push` to `origin` for the current branch (`git push -u origin HEAD` on the first push for a new branch).
+- If push fails, report the error. A `stop` hook may push again if you committed but did not push; it does not commit for you.
+
+To disable hook-only auto-push: environment variable `CURSOR_DISABLE_AUTO_PUSH=1`, or an empty file `.cursor/disable-auto-push`.
