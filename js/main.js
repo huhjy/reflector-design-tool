@@ -63,8 +63,8 @@ function resizeCanvas() {
   renderer.scale = Math.min(scaleX, scaleY);
 
   const chartContainer = chartCanvas.parentElement;
-  chartCanvas.width = chartContainer.offsetWidth || 280;
-  chartCanvas.height = 180;
+  chartCanvas.width = chartContainer.offsetWidth || 196;
+  chartCanvas.height = 110;
 
   simulate();
 }

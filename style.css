@@ -267,12 +267,59 @@ details[open] summary {
 #distribution-chart {
   display: block;
   width: 100%;
-  height: 180px;
+  height: 110px;
 }
 
 /* Hidden file input */
 #file-input {
   display: none;
+}
+
+/* Analysis results overlay (top-left of canvas) */
+.analysis-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 220px;
+  background: rgba(255, 255, 255, 0.93);
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 8px;
+  padding: 9px 11px 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.analysis-overlay-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #888;
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #eee;
+}
+
+.analysis-overlay .result-row {
+  padding: 3px 0;
+}
+
+.analysis-overlay .result-value {
+  font-size: 12px;
+}
+
+.analysis-overlay .result-label {
+  font-size: 10px;
+}
+
+.analysis-overlay .chart-container {
+  margin-top: 7px;
+  border-radius: 4px;
+}
+
+.analysis-overlay #distribution-chart {
+  height: 110px;
 }
 
 /* Shape-specific params */

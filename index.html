@@ -26,6 +26,15 @@
     <!-- Canvas -->
     <div class="canvas-container">
       <canvas id="main-canvas"></canvas>
+
+      <!-- Analysis overlay (top-left of canvas) -->
+      <div class="analysis-overlay">
+        <div class="analysis-overlay-title">Analysis Results</div>
+        <div id="results"></div>
+        <div class="chart-container">
+          <canvas id="distribution-chart"></canvas>
+        </div>
+      </div>
     </div>
 
     <!-- Sidebar -->
@@ -252,18 +261,6 @@
         </div>
       </details>
 
-      <!-- Analysis Results -->
-      <details open>
-        <summary>Analysis Results</summary>
-        <div class="section-body">
-          <p class="desc">How effectively the reflector captures and redirects LED light to the exit aperture. Higher efficiency means less wasted light.</p>
-          <div id="results"></div>
-          <div class="chart-container">
-            <canvas id="distribution-chart"></canvas>
-          </div>
-          <p class="hint">The chart shows how light intensity is distributed across the exit aperture. A tall, even distribution means uniform illumination. Dotted lines past the exit show where light goes after leaving the reflector.</p>
-        </div>
-      </details>
     </aside>
   </div>
 
