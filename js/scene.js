@@ -12,9 +12,9 @@ export function createDefaultScene() {
       rayCount: 150,
     },
     exitArea: {
-      center: { x: 4.0, y: 5.5 },
-      angleDeg: -64,
-      width: 7.5,
+      center: { x: 3.89, y: 5.5 },
+      angleDeg: -63.6,
+      width: 7.4,
     },
     reflector: {
       type: 'freeform',
@@ -33,13 +33,13 @@ export function createDefaultScene() {
       freeformMode: 'mixed', // 'polyline' | 'smooth' | 'mixed' | 'bezier'
       // Polyline vertices (absolute positions, independent)
       vertices: [
-        { x: -2.0, y: -1.1 },  // on PCB, left of LED
-        { x: -2.0, y: 3.0 },   // directly above first
-        { x: 0.8, y: 6.8 },    // forward & above
-        { x: 2.4, y: 8.0 },    // near exit aperture top (P1)
+        { x: -2.33, y: -0.62 },  // near PCB, left of LED
+        { x: -2.48, y: 2.92 },   // vertical wall above
+        { x: 0.8, y: 7.38 },     // sweeping forward & up
+        { x: 2.11, y: 8.12 },    // near exit aperture top
       ],
-      segmentCurved: [false, true, true], // first seg straight, others curved
-      segmentTension: [0.5, 0.5, 0.5],   // 'mixed' mode: tension per segment (0.0–1.5)
+      segmentCurved: [true, true, true],      // all curved for smooth collimation
+      segmentTension: [0.28, 0.63, 0.50],     // optimized curvature per segment
       // Bezier control points
       controlPoints: [
         { x: -55, y: 75 },
