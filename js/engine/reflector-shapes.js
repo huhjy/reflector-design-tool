@@ -153,12 +153,14 @@ function phantomPoint(endpoint, neighbor) {
 /**
  * Convert a Catmull-Rom span [p0,p1,p2,p3] into cubic Bezier control points
  * for the p1→p2 segment.
+ * @param {number} tension  0.0 = nearly straight, 0.5 = standard Catmull-Rom, 1.0 = max curvature
  */
-function catmullRomToBezier(p0, p1, p2, p3) {
+function catmullRomToBezier(p0, p1, p2, p3, tension = 0.5) {
+  const t = tension / 3;   // standard Catmull-Rom = 0.5/3 ≈ 1/6
   return [
     p1,
-    { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 },
-    { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 },
+    { x: p1.x + (p2.x - p0.x) * t, y: p1.y + (p2.y - p0.y) * t },
+    { x: p2.x - (p3.x - p1.x) * t, y: p2.y - (p3.y - p1.y) * t },
     p2,
   ];
 }
@@ -214,20 +216,23 @@ export function getMixedPolylineSegments(reflector) {
   const origN = (reflector.vertices || []).length;
   const leftSegCount = Math.max(origN - 1, 0);
   const segCurved = reflector.segmentCurved || [];
+  const segTension = reflector.segmentTension || [];
 
-  // Build full curved[] for every segment in the combined (possibly mirrored) point list
+  // Build full curved[] and tension[] for every segment (including mirrored)
   const allCurved = [];
+  const allTension = [];
   for (let i = 0; i < pts.length - 1; i++) {
     if (i < leftSegCount) {
       allCurved.push(!!segCurved[i]);
+      allTension.push(segTension[i] ?? 0.5);
     } else if (i === leftSegCount) {
-      // Junction between left and mirrored-right: inherit last left type
       allCurved.push(!!segCurved[leftSegCount - 1]);
+      allTension.push(segTension[leftSegCount - 1] ?? 0.5);
     } else {
-      // Right mirror: reverse of left (right segment 0 = mirror of last left, etc.)
       const rightIdx = i - leftSegCount - 1;
       const mirrorIdx = leftSegCount - 1 - rightIdx;
       allCurved.push(mirrorIdx >= 0 ? !!segCurved[mirrorIdx] : false);
+      allTension.push(mirrorIdx >= 0 ? (segTension[mirrorIdx] ?? 0.5) : 0.5);
     }
   }
 
@@ -238,7 +243,7 @@ export function getMixedPolylineSegments(reflector) {
       const p1 = pts[i];
       const p2 = pts[i + 1];
       const p3 = i + 2 < pts.length ? pts[i + 2] : phantomPoint(pts[pts.length - 1], pts[pts.length - 2]);
-      result.push({ type: 'bezier', points: catmullRomToBezier(p0, p1, p2, p3) });
+      result.push({ type: 'bezier', points: catmullRomToBezier(p0, p1, p2, p3, allTension[i]) });
     } else {
       result.push({ type: 'line', points: [pts[i], pts[i + 1]] });
     }

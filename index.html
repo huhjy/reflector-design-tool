@@ -11,6 +11,8 @@
     <!-- Toolbar -->
     <div class="toolbar">
       <h1>Reflector Design Tool</h1>
+      <button id="btn-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
+      <button id="btn-redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
       <button id="btn-reset">Reset</button>
       <button id="btn-save">Save</button>
       <button id="btn-load">Load</button>
@@ -33,6 +35,9 @@
         <div id="results"></div>
         <div class="chart-container">
           <canvas id="distribution-chart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="angular-chart"></canvas>
         </div>
       </div>
     </div>
@@ -240,7 +245,8 @@
               <option value="rayEfficiency">Ray Efficiency</option>
               <option value="powerEfficiency">Power Efficiency</option>
               <option value="uniformity">Uniformity</option>
-              <option value="balanced" selected>Balanced (recommended)</option>
+              <option value="balanced">Balanced</option>
+              <option value="beamConcentration" selected>Beam Concentration</option>
             </select>
           </div>
           <div class="field">

@@ -552,8 +552,24 @@ details[open] summary {
 /* Segment type toggle (mixed mode) */
 .seg-type-row {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 1px 0;
+}
+
+.seg-tension {
+  width: 60px;
+  height: 12px;
+  accent-color: #1565C0;
+  cursor: pointer;
+}
+
+.seg-tension-val {
+  font-size: 10px;
+  color: #888;
+  min-width: 28px;
+  text-align: center;
 }
 
 .seg-type-btn {

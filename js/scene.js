@@ -6,18 +6,18 @@ export function createDefaultScene() {
       position: { x: 0, y: 0 },
       ledWidth: 1.6,
       ledHeight: 0.78,
-      emissionAngleMin: -85,
-      emissionAngleMax: 85,
+      emissionAngleMin: -67.5,
+      emissionAngleMax: 67.5,
       intensityProfile: 'lambertian',
       rayCount: 150,
     },
     exitArea: {
-      center: { x: 0, y: 75 },
-      angleDeg: 0,
-      width: 110,
+      center: { x: 4.0, y: 5.5 },
+      angleDeg: -64,
+      width: 7.5,
     },
     reflector: {
-      type: 'parabolic',
+      type: 'freeform',
       // Parabolic
       vertex: { x: 0, y: -8 },
       focalLength: 8,
@@ -30,16 +30,16 @@ export function createDefaultScene() {
       arcStartDeg: 180,
       arcEndDeg: 360,
       // Freeform
-      freeformMode: 'polyline', // 'polyline' | 'smooth' | 'mixed' | 'bezier'
+      freeformMode: 'mixed', // 'polyline' | 'smooth' | 'mixed' | 'bezier'
       // Polyline vertices (absolute positions, independent)
       vertices: [
-        { x: -50, y: 70 },
-        { x: -41.4, y: 46.5 },
-        { x: -37.1, y: 21.9 },
-        { x: -37.1, y: 1.9 },
-        { x: -28.5, y: -6.5 },
+        { x: -2.0, y: -1.1 },  // on PCB, left of LED
+        { x: -2.0, y: 3.0 },   // directly above first
+        { x: 0.8, y: 6.8 },    // forward & above
+        { x: 2.4, y: 8.0 },    // near exit aperture top (P1)
       ],
-      segmentCurved: [], // 'mixed' mode: boolean per left-side segment
+      segmentCurved: [false, true, true], // first seg straight, others curved
+      segmentTension: [0.5, 0.5, 0.5],   // 'mixed' mode: tension per segment (0.0–1.5)
       // Bezier control points
       controlPoints: [
         { x: -55, y: 75 },
@@ -51,14 +51,14 @@ export function createDefaultScene() {
         { x: 60, y: 40 },
         { x: 55, y: 75 },
       ],
-      mirrorX: true,
+      mirrorX: false,
       reflectivity: 0.95,
       surfaceType: 'specular',
     },
     pcb: {
       y: 0,
-      width: 140,
-      height: 6,
+      width: 20,
+      height: 1.5,
     },
   };
 }

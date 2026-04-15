@@ -2,7 +2,7 @@
 // Uses multi-parameter hill climbing with adaptive perturbation and restarts
 
 import { traceScene } from './tracer.js';
-import { computeEfficiency, computeDistribution } from './analysis.js';
+import { computeEfficiency, computeDistribution, computeAngularDistribution } from './analysis.js';
 
 const objectives = {
   rayEfficiency(result, scene) {
@@ -22,6 +22,15 @@ const objectives = {
     return eff.intensityEfficiency * 0.5
       + dist.uniformity * 100 * 0.3
       + (100 - Math.abs(dist.fwhm - 80)) * 0.2;
+  },
+  beamConcentration(result, scene) {
+    // Maximize power efficiency while concentrating the beam angularly
+    const eff = computeEfficiency(result, scene);
+    if (eff.rayEfficiency < 5) return eff.rayEfficiency;
+    const angDist = computeAngularDistribution(result, 45);
+    // Reward narrow angular FWHM and high efficiency
+    const narrowness = Math.max(0, 100 - angDist.fwhm);  // smaller FWHM → higher score
+    return eff.intensityEfficiency * 0.6 + narrowness * 0.4;
   },
 };
 
@@ -47,13 +56,30 @@ function getParameters(scene) {
       { name: 'arcEndDeg', get: () => r.arcEndDeg, set: (v) => r.arcEndDeg = v, min: 270, max: 450, step: 5 },
     );
   } else if (r.type === 'freeform') {
-    if (r.freeformMode === 'polyline' && r.vertices) {
+    if ((r.freeformMode === 'polyline' || r.freeformMode === 'smooth' || r.freeformMode === 'mixed') && r.vertices) {
       for (let i = 0; i < r.vertices.length; i++) {
         const v = r.vertices[i];
         params.push(
           { name: `vtx${i}.x`, get: () => v.x, set: (val) => v.x = val, min: -80, max: 80, step: 1 },
           { name: `vtx${i}.y`, get: () => v.y, set: (val) => v.y = val, min: -30, max: 100, step: 1 },
         );
+      }
+      // In mixed mode, also optimize tension of curved segments
+      if (r.freeformMode === 'mixed' && r.segmentCurved) {
+        // Ensure tension array exists
+        if (!r.segmentTension) r.segmentTension = [];
+        while (r.segmentTension.length < r.vertices.length - 1) r.segmentTension.push(0.5);
+        for (let i = 0; i < r.segmentCurved.length; i++) {
+          if (r.segmentCurved[i]) {
+            const idx = i;
+            params.push({
+              name: `tension${i}`,
+              get: () => r.segmentTension[idx],
+              set: (val) => r.segmentTension[idx] = val,
+              min: 0.05, max: 1.5, step: 0.05,
+            });
+          }
+        }
       }
     } else if (r.controlPoints) {
       for (let i = 0; i < r.controlPoints.length; i++) {
@@ -211,4 +237,5 @@ export const objectiveDescriptions = {
   powerEfficiency: 'Maximize total light power at the exit',
   uniformity: 'Maximize evenness of light spread across the exit',
   balanced: 'Balance power efficiency, uniformity, and beam width',
+  beamConcentration: 'Maximize efficiency while concentrating the beam into a narrow angle',
 };

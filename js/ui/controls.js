@@ -2,10 +2,12 @@
 import { computeVertexSegmentInfo } from '../engine/reflector-shapes.js';
 
 export class Controls {
-  constructor(scene, onChange) {
+  constructor(scene, onChange, undoMgr = null) {
     this.scene = scene;
     this.onChange = onChange;
+    this.undoMgr = undoMgr;
     this._debounceTimer = null;
+    this._undoPushed = false;   // one snapshot per focused edit session
     this.init();
   }
 
@@ -65,6 +67,7 @@ export class Controls {
 
     // Add vertex button
     document.getElementById('btn-add-vertex')?.addEventListener('click', () => {
+      if (this.undoMgr) this.undoMgr.push(this.scene);
       const verts = this.scene.reflector.vertices;
       if (verts.length > 0) {
         const last = verts[verts.length - 1];
@@ -96,6 +99,18 @@ export class Controls {
     } else {
       el.value = val;
     }
+    // Push undo snapshot once per focus session (not on every keystroke)
+    const pushOnce = () => {
+      if (!this._undoPushed && this.undoMgr) {
+        this.undoMgr.push(this.scene);
+        this._undoPushed = true;
+      }
+    };
+    el.addEventListener('focus', pushOnce);
+    el.addEventListener('mousedown', pushOnce);  // range inputs
+    el.addEventListener('blur', () => { this._undoPushed = false; });
+    el.addEventListener('mouseup', () => { this._undoPushed = false; });
+
     const handler = () => {
       let newVal;
       if (type === 'int') newVal = parseInt(el.value, 10);
@@ -178,6 +193,7 @@ export class Controls {
       // Segment type toggle between consecutive vertices (mixed mode only)
       if (isMixed && i < verts.length - 1) {
         const curved = !!segCurved[i];
+        const tension = (this.scene.reflector.segmentTension || [])[i] ?? 0.5;
         const segRow = document.createElement('div');
         segRow.className = 'seg-type-row';
         segRow.innerHTML = `
@@ -185,6 +201,10 @@ export class Controls {
             title="${curved ? 'Curved \u2014 click to make straight' : 'Straight \u2014 click to make curved'}">
             ${curved ? '\u2040' : '\u2014'}
           </button>
+          ${curved ? `<input type="range" class="seg-tension" data-idx="${i}"
+            min="0.05" max="1.5" step="0.05" value="${tension}"
+            title="Curvature tension: ${tension.toFixed(2)} (0 = flat, 0.5 = standard, 1+ = exaggerated)">
+            <span class="seg-tension-val">${tension.toFixed(2)}</span>` : ''}
         `;
         container.appendChild(segRow);
       }
@@ -209,6 +229,7 @@ export class Controls {
 
     container.querySelectorAll('.vtx-remove').forEach((el) => {
       el.addEventListener('click', () => {
+        if (this.undoMgr) this.undoMgr.push(this.scene);
         const idx = parseInt(el.dataset.idx, 10);
         this.scene.reflector.vertices.splice(idx, 1);
         // Also remove the corresponding segmentCurved entry
@@ -223,12 +244,36 @@ export class Controls {
     if (isMixed) {
       container.querySelectorAll('.seg-type-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
+          if (this.undoMgr) this.undoMgr.push(this.scene);
           const idx = parseInt(btn.dataset.idx, 10);
           const sc = this.scene.reflector.segmentCurved || [];
           while (sc.length < verts.length - 1) sc.push(false);
           sc[idx] = !sc[idx];
           this.scene.reflector.segmentCurved = sc;
           this.renderVertexList();
+          this.debounceChange();
+        });
+      });
+
+      // Bind tension slider events
+      container.querySelectorAll('.seg-tension').forEach((slider) => {
+        let pushed = false;
+        slider.addEventListener('mousedown', () => {
+          if (!pushed && this.undoMgr) {
+            this.undoMgr.push(this.scene);
+            pushed = true;
+          }
+        });
+        slider.addEventListener('mouseup', () => { pushed = false; });
+        slider.addEventListener('input', () => {
+          const idx = parseInt(slider.dataset.idx, 10);
+          const st = this.scene.reflector.segmentTension || [];
+          while (st.length < verts.length - 1) st.push(0.5);
+          st[idx] = parseFloat(slider.value);
+          this.scene.reflector.segmentTension = st;
+          // Update display
+          const valSpan = slider.nextElementSibling;
+          if (valSpan) valSpan.textContent = parseFloat(slider.value).toFixed(2);
           this.debounceChange();
         });
       });

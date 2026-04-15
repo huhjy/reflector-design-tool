@@ -5,12 +5,56 @@ import { Renderer } from './renderer/canvas-renderer.js';
 import { Charts } from './ui/charts.js';
 import { Controls } from './ui/controls.js';
 import { Interaction } from './ui/interaction.js';
+import { UndoManager } from './ui/history.js';
 import { startOptimizer, objectiveDescriptions } from './engine/optimizer.js';
 
 // Expose for reset functionality
 window.__sceneModule = { createDefaultScene, migrateScene };
 
 const scene = createDefaultScene();
+
+// Undo / Redo
+const undoMgr = new UndoManager(50);
+window.__undoManager = undoMgr;       // accessible from controls + interaction
+
+const btnUndo = document.getElementById('btn-undo');
+const btnRedo = document.getElementById('btn-redo');
+
+undoMgr.onChange((canUndo, canRedo) => {
+  if (btnUndo) btnUndo.disabled = !canUndo;
+  if (btnRedo) btnRedo.disabled = !canRedo;
+});
+
+function applySnapshot(snapshot) {
+  Object.assign(scene, snapshot);
+  controls.syncFromScene();
+  controls.updateShapeVisibility();
+  controls.renderVertexList();
+  simulate();
+}
+
+btnUndo?.addEventListener('click', () => {
+  const s = undoMgr.undo(scene);
+  if (s) applySnapshot(s);
+});
+btnRedo?.addEventListener('click', () => {
+  const s = undoMgr.redo(scene);
+  if (s) applySnapshot(s);
+});
+
+document.addEventListener('keydown', (e) => {
+  // Ignore when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    const s = undoMgr.undo(scene);
+    if (s) applySnapshot(s);
+  } else if ((e.ctrlKey && e.key === 'z' && e.shiftKey) || (e.ctrlKey && e.key === 'y')) {
+    e.preventDefault();
+    const s = undoMgr.redo(scene);
+    if (s) applySnapshot(s);
+  }
+});
 
 // Main canvas
 const canvas = document.getElementById('main-canvas');
@@ -19,8 +63,9 @@ renderer.setScene(scene);
 
 // Charts
 const chartCanvas = document.getElementById('distribution-chart');
+const angularCanvas = document.getElementById('angular-chart');
 const resultsEl = document.getElementById('results');
-const charts = new Charts(chartCanvas, resultsEl);
+const charts = new Charts(chartCanvas, angularCanvas, resultsEl);
 
 // Simulation
 function simulate() {
@@ -30,17 +75,17 @@ function simulate() {
   charts.update(result, scene);
 }
 
-// Controls
+// Controls — pass undoMgr so controls can push snapshots before changes
 const controls = new Controls(scene, () => {
   controls.updateShapeVisibility();
   simulate();
-});
+}, undoMgr);
 
-// Canvas interaction
+// Canvas interaction — pass undoMgr so drag-start pushes a snapshot
 const interaction = new Interaction(canvas, renderer, scene, () => {
   controls.syncFromScene();
   simulate();
-});
+}, undoMgr);
 
 // Resize handler
 function resizeCanvas() {
@@ -62,9 +107,15 @@ function resizeCanvas() {
   const scaleX = (w * 0.9) / sceneWidth;
   renderer.scale = Math.min(scaleX, scaleY);
 
+  // Size both chart canvases
   const chartContainer = chartCanvas.parentElement;
-  chartCanvas.width = chartContainer.offsetWidth || 196;
+  const cw = chartContainer.offsetWidth || 196;
+  chartCanvas.width = cw;
   chartCanvas.height = 110;
+  if (angularCanvas) {
+    angularCanvas.width = cw;
+    angularCanvas.height = 110;
+  }
 
   simulate();
 }
@@ -111,6 +162,9 @@ optIterations?.addEventListener('input', () => {
 
 btnOptimize?.addEventListener('click', () => {
   if (optimizerRunning) return;
+
+  // Save state before optimizer so user can undo the whole optimization
+  undoMgr.push(scene);
 
   optimizerRunning = true;
   stopOptimizer = false;

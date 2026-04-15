@@ -2,11 +2,12 @@
 import { getExitEndpoints } from '../scene.js';
 
 export class Interaction {
-  constructor(canvas, renderer, scene, onChange) {
+  constructor(canvas, renderer, scene, onChange, undoMgr = null) {
     this.canvas = canvas;
     this.renderer = renderer;
     this.scene = scene;
     this.onChange = onChange;
+    this.undoMgr = undoMgr;
     this.dragging = null;
     this.panning = false;
     this.panStart = null;
@@ -41,6 +42,8 @@ export class Interaction {
     }
     const handle = this.renderer.hitTestHandle(pos.x, pos.y);
     if (handle) {
+      // Save state before drag begins
+      if (this.undoMgr) this.undoMgr.push(this.scene);
       const world = this.renderer.toWorld(pos.x, pos.y);
       this.dragging = { id: handle.id };
       // For line-body drag, store initial positions to avoid jumping
