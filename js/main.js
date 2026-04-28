@@ -75,6 +75,9 @@ function simulate() {
   charts.update(result, scene);
 }
 
+// Debug hooks
+window.__app = { scene, simulate, renderer, get applySnapshot() { return applySnapshot; } };
+
 // Controls — pass undoMgr so controls can push snapshots before changes
 const controls = new Controls(scene, () => {
   controls.updateShapeVisibility();

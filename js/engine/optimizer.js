@@ -32,6 +32,29 @@ const objectives = {
     const narrowness = Math.max(0, 100 - angDist.fwhm);  // smaller FWHM → higher score
     return eff.intensityEfficiency * 0.6 + narrowness * 0.4;
   },
+  targetBeam(result, scene) {
+    // Target: peak −5°, FWHM 15–20°, 80% energy in [−15°, +5°] window
+    const eff = computeEfficiency(result, scene);
+    if (eff.rayEfficiency < 5) return eff.rayEfficiency;
+    const ang = computeAngularDistribution(result, 90);  // 2° bins for precision
+    // Fraction of intensity inside the target window
+    let win = 0, tot = 0;
+    for (let i = 0; i < ang.bins.length; i++) {
+      tot += ang.bins[i];
+      if (ang.binCenters[i] >= -15 && ang.binCenters[i] <= 5) win += ang.bins[i];
+    }
+    const fraction = tot > 0 ? win / tot : 0;
+    // Peak angle score (want −5°)
+    const peakScore = Math.max(0, 1 - Math.abs(ang.peakAngle + 5) / 20);
+    // FWHM score: 1.0 in [15°, 20°], tapers outside
+    const fw = ang.fwhm;
+    const fwhmScore = fw >= 15 && fw <= 20 ? 1.0
+      : fw < 15 ? fw / 15
+      : Math.max(0, 1 - (fw - 20) / 30);
+    // Power efficiency bonus
+    const effScore = eff.intensityEfficiency / 100;
+    return fraction * 55 + peakScore * 20 + fwhmScore * 15 + effScore * 10;
+  },
 };
 
 function getParameters(scene) {
@@ -238,4 +261,5 @@ export const objectiveDescriptions = {
   uniformity: 'Maximize evenness of light spread across the exit',
   balanced: 'Balance power efficiency, uniformity, and beam width',
   beamConcentration: 'Maximize efficiency while concentrating the beam into a narrow angle',
+  targetBeam: 'Target peak −5°, 15–20° FWHM, 80% energy in main beam window',
 };
