@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "."],
       "port": 3000
+    },
+    {
+      "name": "snap-fit",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8848", "--directory", "C:/Users/jhuh/snap-fit"],
+      "port": 8848
     }
   ]
 }
