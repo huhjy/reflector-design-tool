@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Reflector Analyzer</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: flex;
+      background: #eef1f5;
+      color: #1f2937;
+      font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    #viewport-wrap { position: relative; flex: 1; min-width: 0; }
+    #viewport { width: 100%; height: 100%; display: block; }
+    #hint {
+      position: absolute; left: 12px; top: 12px;
+      padding: 6px 10px; border-radius: 6px;
+      background: rgba(255, 255, 255, 0.85); color: #475569; font-size: 12px;
+    }
+    aside {
+      width: 320px; height: 100vh; overflow-y: auto;
+      background: #ffffff; border-left: 1px solid #dbe1e8;
+      padding: 14px 16px;
+    }
+    h1 { font-size: 15px; margin: 0 0 12px; }
+    section { border-top: 1px solid #eceff3; padding: 12px 0; }
+    section:first-of-type { border-top: none; padding-top: 0; }
+    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin: 0 0 8px; }
+    label { display: block; margin: 8px 0 2px; color: #475569; font-size: 12px; }
+    input[type="number"], select {
+      width: 100%; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font: inherit;
+    }
+    .row { display: flex; gap: 6px; }
+    .row > div { flex: 1; }
+    .range-row { display: flex; align-items: center; gap: 8px; }
+    .range-row input[type="range"] { flex: 1; }
+    .range-row span { width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+    .stat { display: flex; justify-content: space-between; padding: 2px 0; }
+    .stat b { font-variant-numeric: tabular-nums; }
+    .pill { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+    canvas#chart { width: 100%; height: 96px; margin-top: 8px; border: 1px solid #eceff3; border-radius: 4px; }
+    .muted { color: #94a3b8; font-size: 11px; }
+    .pickbtn {
+      width: 100%; margin-top: 6px; padding: 6px 8px; font: inherit; cursor: pointer;
+      border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; color: #334155;
+    }
+    .pickbtn.active { border-color: #2563eb; background: #e0edff; color: #1d4ed8; font-weight: 600; }
+    .pickbtn.selected { border-color: #16a34a; background: #eafaf0; color: #15803d; }
+    .uploadbtn {
+      display: block; margin-top: 6px; padding: 6px 8px; text-align: center; cursor: pointer;
+      border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; color: #334155;
+    }
+    .uploadbtn input { display: none; }
+    #drop-overlay {
+      position: fixed; inset: 0; z-index: 20; display: none;
+      align-items: center; justify-content: center; pointer-events: none;
+      background: rgba(37, 99, 235, 0.12); border: 3px dashed #2563eb;
+      color: #1d4ed8; font-size: 20px; font-weight: 600;
+    }
+    #drop-overlay.active { display: flex; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://esm.sh/three@0.160.0",
+      "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+      "three-mesh-bvh": "https://esm.sh/three-mesh-bvh@0.7.6?deps=three@0.160.0"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="viewport-wrap">
+    <canvas id="viewport"></canvas>
+    <div id="hint">Drag the orange handle to move the source · Click a wall to set the exit face</div>
+  </div>
+  <div id="drop-overlay">Drop an STL file to load</div>
+
+  <aside>
+    <h1>3D Reflector Analyzer</h1>
+
+    <section>
+      <h2>Model</h2>
+      <select id="sample">
+        <option value="./samples/reflector_1.stl">reflector_1 (airspace)</option>
+        <option value="./samples/fl-4.stl">fl-4 (solid part)</option>
+      </select>
+      <div class="stat muted"><span id="model-info">Loading…</span></div>
+      <label class="uploadbtn">Upload STL…<input type="file" id="stl-file" accept=".stl"></label>
+      <div class="muted">…or drag &amp; drop an STL onto the view.</div>
+    </section>
+
+    <section>
+      <h2>Light Source</h2>
+      <div class="row">
+        <div><label>X</label><input type="number" id="src-x" step="0.5"></div>
+        <div><label>Y</label><input type="number" id="src-y" step="0.5"></div>
+        <div><label>Z</label><input type="number" id="src-z" step="0.5"></div>
+      </div>
+      <label>Beam half-angle (°) — 135° beam = 67.5</label>
+      <input type="number" id="half-angle" value="67.5" step="2.5" min="1" max="90">
+      <label>Ray count</label>
+      <div class="range-row">
+        <input type="range" id="ray-count" min="200" max="20000" step="200" value="3000">
+        <span id="ray-count-val">3000</span>
+      </div>
+      <button id="pick-source" class="pickbtn">Click a face to place source</button>
+    </section>
+
+    <section>
+      <h2>Reflector Surface</h2>
+      <label>Reflectivity (chrome ≈ 0.65)</label>
+      <div class="range-row">
+        <input type="range" id="reflectivity" min="0" max="1" step="0.01" value="0.65">
+        <span id="reflectivity-val">0.65</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Exit Face</h2>
+      <button id="pick-exit" class="pickbtn active">Click a face to set exit</button>
+      <div class="stat"><span>Area</span><b id="exit-area">—</b></div>
+      <div class="stat"><span>Normal</span><b id="exit-normal">—</b></div>
+    </section>
+
+    <section>
+      <h2>Analysis</h2>
+      <div class="stat"><span>Light out (flux)</span><b id="efficiency">—</b></div>
+      <div class="stat"><span><span class="pill" style="background:#16a34a"></span>Exited rays</span><b id="count-exit">—</b></div>
+      <div class="stat"><span><span class="pill" style="background:#d97706"></span>Absorbed rays</span><b id="count-absorbed">—</b></div>
+      <div class="stat"><span><span class="pill" style="background:#9aa7b8"></span>Leaked rays</span><b id="count-escaped">—</b></div>
+      <div class="stat"><span>Avg bounces (exit)</span><b id="avg-bounces">—</b></div>
+      <div class="stat"><span>Beam peak / mean</span><b id="beam-peak">—</b></div>
+      <div class="stat"><span>Beam FWHM</span><b id="beam-fwhm">—</b></div>
+      <canvas id="chart" width="288" height="96"></canvas>
+      <div class="muted">Exit beam: flux vs. angle from the exit-face normal.</div>
+      <label><input type="checkbox" id="show-exit" checked> Show output (exit) rays</label>
+      <label><input type="checkbox" id="show-absorbed"> Show absorbed rays</label>
+      <label><input type="checkbox" id="show-escaped"> Show leaked rays</label>
+      <label><input type="checkbox" id="show-full-paths" checked> Show full ray paths (inside reflector)</label>
+    </section>
+
+    <section>
+      <h2>Beam Goal</h2>
+      <label>Up axis (defines "horizontal")</label>
+      <select id="up-axis">
+        <option value="0,0,1">+Z</option>
+        <option value="0,0,-1">−Z</option>
+        <option value="0,1,0">+Y</option>
+        <option value="0,-1,0">−Y</option>
+        <option value="1,0,0">+X</option>
+        <option value="-1,0,0">−X</option>
+      </select>
+      <label>Target elevation (°, + up / − down)</label>
+      <input type="number" id="target-elev" value="5" step="1" min="-90" max="90">
+      <label>On-target cone (± °)</label>
+      <input type="number" id="on-target-cone" value="10" step="1" min="1" max="90">
+      <label><input type="checkbox" id="show-beam" checked> Show fitted beam cone + target</label>
+      <div class="stat"><span><b id="on-target" style="color:#16a34a">—</b> of flux on target</span></div>
+      <div class="stat"><span><span class="pill" style="background:#7c3aed"></span>Beam elevation</span><b id="beam-elev">—</b></div>
+      <div class="stat"><span><span class="pill" style="background:#ef4444"></span>Goal</span><b id="beam-goal">—</b></div>
+      <div class="stat"><span>Elevation error</span><b id="beam-elev-err">—</b></div>
+      <div class="stat"><span>Cone half-angle (50% / 90%)</span><b id="beam-cone">—</b></div>
+      <div class="stat"><span>Deviation from target</span><b id="beam-dev">—</b></div>
+      <div class="muted">On-target % (green) is the score to maximize. Purple cone = fitted beam (90% flux). Red arrow = target.</div>
+    </section>
+  </aside>
+
+  <script type="module" src="js/main3d.js"></script>
+</body>
+</html>

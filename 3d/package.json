@@ -1,0 +1,10 @@
+{
+  "name": "reflector-3d",
+  "version": "0.0.0",
+  "description": "3D STL-import reflector beam analyzer",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
